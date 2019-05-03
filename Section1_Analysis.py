@@ -17,7 +17,7 @@ print('Total number of persons injured in the dataset (up to December 31, 2018: 
 
 
 # What proportion of all collisions in 2016 occured in Brooklyn? Only consider entries with a non-null value for BOROUGH.
-
+# TODO Complete this problem.
 df1 = data[(data['DATE'] >= pd.to_datetime('01/01/2016', format='%m/%d/%Y')) &
      (data['DATE'] <= pd.to_datetime('12/31/2016', format='%m/%d/%Y')) &
      (data['BOROUGH'] != 'BROOKLYN')]
