@@ -7,7 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-data = pd.read_csv('NYPD_Motor_Vehicle_Collisions.csv', low_memory=False)
+# data = pd.read_csv('NYPD_Motor_Vehicle_Collisions.csv', low_memory=False)
+data = pd.read_csv('updated_NY_motor_collisions.csv', low_memory=False)
 data['DATE'] = pd.to_datetime(data['DATE'], format='%m/%d/%Y')
 
 # Filtering dataset upto December 31, 2018
@@ -99,7 +100,6 @@ total_collisions = data_2016['VEHICLES INVOLVED'].groupby(data_2016['ZIP CODE'])
 # Sum of all vehicles involved in collisions in each zip code
 print(total_collisions.count())
 
-
 print('Maximum Collision in zip code %s: %d' % (str(total_collisions.count().argmax()), int(total_collisions.count().max())))
 
 
@@ -134,3 +134,88 @@ plt.show()
 print('Slope of Linear fit: %f', reg.coef_[0][0])
 
 
+# Do winter driving conditions lead to more multi-car collisions? Compute the rate of multi car collisions as
+# the proportion of the number of collisions involving 3 or more cars to the total number of collisions for
+# each month of 2017. Calculate the chi-square test statistic for testing whether a collision is more likely
+# to involve 3 or more cars in January than in May.
+
+data_2017 = data.loc[(data['DATE'] >= pd.to_datetime('01/01/2017', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2017', format='%m/%d/%Y')), ['DATE', 'VEHICLES INVOLVED']]
+
+data_2017 = data_2017.set_index('DATE')
+df1 = data_2017.resample('M')
+df1.count()
+
+multi_collision_2017 = data_2017[data_2017['VEHICLES INVOLVED'] >=3]
+df2 = multi_collision_2017.resample('M')
+df2.count()
+
+df3 = df2.count()['VEHICLES INVOLVED']/df1.count()['VEHICLES INVOLVED']
+
+
+# TODO Understanding Chi-squared Statistic and its use here
+from scipy.stats import chi2_contingency, chisquare
+print(chi2_contingency(df2.count().values.reshape(1, -1)[0]))
+print(chisquare(df2.count().values.reshape(1, -1)[0], df1.count().values.reshape(1, -1)[0]))
+
+# We can use collision locations to estimate the areas of the zip code regions. Represent each as an ellipse with
+# semi-axes given by a single standard deviation of the longitude and latitude. For collisions in 2017, estimate
+# the number of collisions per square kilometer of each zip code region. Considering zipcodes with at least 1000
+# collisions, report the greatest value for collisions per square kilometer. Note: Some entries may have invalid
+# or incorrect (latitude, longitude) coordinates. Drop any values that are invalid or seem unreasonable for New
+# York City.
+
+from geopy import distance
+
+data_2017 = data.loc[(data['DATE'] >= pd.to_datetime('01/01/2017', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2017', format='%m/%d/%Y')), ['ZIP CODE', 'LATITUDE', 'LONGITUDE', 'LOCATION']]
+
+# Indices where latitude or longitude locations are 0
+missing_location_indices = data_2017[(data_2017['LATITUDE'].round() == 0.0) | (data_2017['LATITUDE'].round() == 0.0)].index
+
+data_2017 = data_2017.drop(list(missing_location_indices))
+data_2017 = data_2017.dropna()
+
+df1 = data_2017['LOCATION'].groupby(data_2017['ZIP CODE'])
+s1 = pd.Series(data = df1.count(), index = df1.count().index)
+s2 = s1[s1 >= 1000]   # Zip codes where collisions are more than thousand
+
+zip_codes_to_consider = set(s2.index)
+
+# Accessing each group by zip code
+# df1.get_group('10000')
+
+Zip_CollisionLoc_dict = {}
+
+for zip in zip_codes_to_consider:
+
+    if zip not in Zip_CollisionLoc_dict:
+        Zip_CollisionLoc_dict[zip] = [[],[]]  # Lat and Long lists
+
+    locations = df1.get_group(zip)
+
+    for loc in locations:
+        lat, long = float(loc[1:-1].split(',')[0]), float(loc[1:-1].split(',')[1])
+        Zip_CollisionLoc_dict[zip][0].append(lat)
+        Zip_CollisionLoc_dict[zip][1].append(long)
+
+Zip_CollisionArea_df = pd.DataFrame(index=zip_codes_to_consider, columns=['Mean Lat', 'Mean Long', 'std Lat', 'std Long',
+                                                                          'Area', 'Collision Count', 'Collision per sq km'])
+
+for zip in zip_codes_to_consider:
+    Zip_CollisionArea_df.loc[zip, 'Mean Lat'] = np.mean(Zip_CollisionLoc_dict[zip][0])
+    Zip_CollisionArea_df.loc[zip, 'Mean Long'] = np.mean(Zip_CollisionLoc_dict[zip][1])
+    Zip_CollisionArea_df.loc[zip, 'std Lat'] = np.std(Zip_CollisionLoc_dict[zip][0])
+    Zip_CollisionArea_df.loc[zip, 'std Long'] = np.std(Zip_CollisionLoc_dict[zip][1])
+
+    center = (Zip_CollisionArea_df.loc[zip, 'Mean Lat'], Zip_CollisionArea_df.loc[zip, 'Mean Long'])
+    a = distance.distance(center, (center[0] + Zip_CollisionArea_df.loc[zip, 'std Lat'], center[1])).km
+    b = distance.distance(center, (center[0], center[1] + Zip_CollisionArea_df.loc[zip, 'std Long'])).km
+
+    Zip_CollisionArea_df.loc[zip, 'Area'] = np.pi * a * b
+    Zip_CollisionArea_df.loc[zip, 'Collision Count'] = s2[zip]
+
+    Zip_CollisionArea_df.loc[zip, 'Collision per sq km'] = s2[zip]/Zip_CollisionArea_df.loc[zip, 'Area']
+
+
+print(Zip_CollisionArea_df['Collision per sq km'].max())
