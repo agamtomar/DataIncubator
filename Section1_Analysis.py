@@ -64,6 +64,73 @@ print(max(accidents_borough_per_capita_dict, key=accidents_borough_per_capita_di
       accidents_borough_per_capita_dict[max(accidents_borough_per_capita_dict, key=accidents_borough_per_capita_dict.get)])
 
 
+# Obtain the number of vehicles involved in each collision in 2016. Group the collisions by zip code and compute
+# the sum of all vehicles involved in collisions in each zip code, then report the maximum of these values.
 
+# making vehicle type set for whole dataset
+vehicle_set = set(data['VEHICLE TYPE CODE 1'].value_counts().keys())
+vehicle_set.intersection(set(data['VEHICLE TYPE CODE 2'].value_counts().keys()))
+vehicle_set.intersection(set(data['VEHICLE TYPE CODE 3'].value_counts().keys()))
+vehicle_set.intersection(set(data['VEHICLE TYPE CODE 4'].value_counts().keys()))
+vehicle_set.intersection(set(data['VEHICLE TYPE CODE 5'].value_counts().keys()))
+
+
+# Took a lot of time to run
+# saved the output as csv updated_NY_motor_collision.csv
+"""
+data = pd.concat([data, pd.Series(data=np.zeros((data.shape[0])), index=data.index, name='VEHICLES INVOLVED')], axis=1)
+for idx in list(data.index):
+    print(idx)
+    temp = 0
+    for i in range(1, 6):
+        if data.loc[idx, 'VEHICLE TYPE CODE %s' % i] in vehicle_set:
+            temp += 1
+
+    data.loc[idx, 'VEHICLES INVOLVED'] = temp
+"""
+
+data_2016 = data[(data['DATE'] >= pd.to_datetime('01/01/2016', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2016', format='%m/%d/%Y'))]
+
+ZIPCODES_set = set(data_2016['ZIP CODE'].value_counts().keys())
+
+total_collisions = data_2016['VEHICLES INVOLVED'].groupby(data_2016['ZIP CODE'])
+
+# Sum of all vehicles involved in collisions in each zip code
+print(total_collisions.count())
+
+
+print('Maximum Collision in zip code %s: %d' % (str(total_collisions.count().argmax()), int(total_collisions.count().max())))
+
+
+# Consider the total number of collisions each year from 2013-2018. Is there an apparent trend?
+# Fit a linear regression for the number of collisions per year and report its slope.
+
+collisions_year_dict= {'2013': data[(data['DATE'] >= pd.to_datetime('01/01/2013', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2013', format='%m/%d/%Y'))].shape[0],
+                       '2014': data[(data['DATE'] >= pd.to_datetime('01/01/2014', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2014', format='%m/%d/%Y'))].shape[0],
+                       '2015': data[(data['DATE'] >= pd.to_datetime('01/01/2015', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2015', format='%m/%d/%Y'))].shape[0],
+                       '2016': data[(data['DATE'] >= pd.to_datetime('01/01/2016', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2016', format='%m/%d/%Y'))].shape[0],
+                       '2017': data[(data['DATE'] >= pd.to_datetime('01/01/2017', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2017', format='%m/%d/%Y'))].shape[0],
+                       '2018': data[(data['DATE'] >= pd.to_datetime('01/01/2018', format='%m/%d/%Y')) &
+     (data['DATE'] <= pd.to_datetime('12/31/2018', format='%m/%d/%Y'))].shape[0]}
+
+
+from sklearn.linear_model import LinearRegression
+X = np.array(list(collisions_year_dict.keys()), dtype=int).reshape(-1,1)
+Y = np.array(list(collisions_year_dict.values()), dtype=int).reshape(-1,1)
+
+reg = LinearRegression()
+reg.fit(X, Y)
+
+plt.scatter(X, Y)
+plt.plot(np.arange(2000, 2050, 0.5), reg.predict(np.arange(2000, 2050, 0.5).reshape(-1,1)))
+plt.show()
+
+print('Slope of Linear fit: %f', reg.coef_[0][0])
 
 
