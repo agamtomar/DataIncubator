@@ -2,6 +2,7 @@
 # Section 2
 import itertools
 import numpy as np
+
 #
 # def valid_sequence_count(n, k, j):
 #     """
